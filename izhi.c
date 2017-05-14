@@ -8,7 +8,7 @@ typedef struct {
     float_t potential, recovery;
 } fneuron_t;
 
-static void RS(fneuron_t *neuron) {
+static void RS_f(fneuron_t *neuron) {
     // create a "regular spiking" floating point neuron
     neuron->a = 0.02;
     neuron->b = 0.2;
@@ -33,15 +33,53 @@ static void step_f(fneuron_t *neuron, float_t synapse, float_t ms) {
     return;
 }
 
+typedef int16_t fixed_t;
+#define FSCALE 320
+
+typedef struct {
+    // using 1/a, 1/b because a and b are small fractions
+    fixed_t a_inv, b_inv, c, d;
+    fixed_t potential, recovery;
+} ineuron_t;
+
+static void RS_i(ineuron_t *neuron) {
+    neuron->a_inv = 50;
+    neuron->b_inv = 5;
+    neuron->c = -65 * FSCALE;
+    neuron->d = 2 * FSCALE;
+    neuron->potential = neuron->recovery = 0;
+}
+
+static void step_i(ineuron_t *neuron, fixed_t synapse, fixed_t fracms) {
+    // step a neuron by 1/fracms milliseconds. synapse input must be scaled
+    //  before being passed to this function.
+    if (neuron->potential >= 30 * FSCALE) {
+        neuron->potential = neuron->c;
+        neuron->recovery += neuron->d;
+        return;
+    }
+    fixed_t v = neuron->potential;
+    fixed_t u = neuron->recovery;
+    neuron->potential = v + ((v * v) / FSCALE / 25 + 5 * v
+                             + 140 * FSCALE - u + synapse) / fracms;
+    neuron->recovery = u + ((v / neuron->b_inv - u) / neuron->a_inv) / fracms;
+    return;
+}
+
 int main(void) {
-    fneuron_t spiky;
-    RS(&spiky);
-    for (int i = 0; i < 2000; i++) {
+    fneuron_t spiky_f;
+    ineuron_t spiky_i;
+    RS_f(&spiky_f);
+    RS_i(&spiky_i);
+    for (int i = 0; i < 5000; i++) {
         if (i < 100) {
-            step_f(&spiky, 0, 0.1);
+            step_f(&spiky_f, 0, 0.1);
+            step_i(&spiky_i, 0, 10);
         } else {
-            step_f(&spiky, 10, 0.1);
+            step_f(&spiky_f, 10, 0.1);
+            step_i(&spiky_i, 10 * FSCALE, 10);
         }
-        printf("%f %f\n", i * 0.1, spiky.potential);
+        printf("%f %f %f\n", i * 0.1, spiky_f.potential,
+               (float_t)(spiky_i.potential) / FSCALE);
     }
 }
