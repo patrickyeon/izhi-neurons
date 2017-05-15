@@ -30,7 +30,7 @@ gcc izhi.c -o izhi
 ./izhi > rs.dat
 ```
 I use `gnuplot` to display this quickly, by starting it up and using the command `plot 'rs.dat' with lines`. The output looks more or less like the outputs from the paper, at least to my eye.
-[data/baseline.png]
+![baseline](https://github.com/patrickyeon/izhi-neurons/blob/master/data/baseline.png?raw/true)
 
 Next I'll implement the easiest fixed-point version I can think of, and we'll see how well its output aligns with the floating-point version. I've done this in [05b939d:izhi.c] and I'd like to highlight a few habits that usually make my life easier:
 ```
@@ -48,7 +48,7 @@ gnuplot> plot 'rs.dat' using 1:2 title 'floating' with lines, \
               'rs.dat' using 1:3 title 'fixed' with lines
 ```
 I get this:
-[data/first_fixed.png]
+![fixed wrong](https://github.com/patrickyeon/izhi-neurons/blob/master/data/first_fixed.png?raw=true)
 
 If I weren't comparing the two on the same plot, I'd be tempted to say they're basically the same. Side-by-side though, we can immediately see that one is running slightly faster than the other. If we count the spikes starting with the nearly-coincident ones near t=200 until the next nearly-coincident ones (roughly t = 375), there are 10 floating point spikes vs. 9 fixed point spikes. The fixed point implementation is rising approximately 90% as fast as the floating point implementation I'm considering my reference.
 

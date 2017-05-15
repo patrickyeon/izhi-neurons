@@ -10,7 +10,7 @@ typedef int16_t fixed_t;
 #define FSCALE 160
 ```
 Aaaand... oh dear. That hasn't exactly helped.
-[data/digression_fscale_160.png]
+![fscale 160](https://github.com/patrickyeon/izhi-neurons/blob/master/data/digression_fscale_160.png?raw=true)
 It seems I was just lucky with my first choice for scaling, and there's actually a lot of choices that would not work (reducing the scale should be safe, so long as the lost precision doesn't destroy the behaviour). It's time to stop shooting from the hip on this one, and go back to proper analysis.
 
 My initial thought on the scaling was that the neuron potential stayed well within the -100..100 range, so I could safely use that as my min and max values. Looking ot the equations as I've written them out, that's clearly wrong for partial results. Just starting with the squaring term and substituting our assumed max for `v`, `v * v => (100 * FSCALE) * (100 * FSCALE) ==> 10000 * FSCALE * FSCALE`. Whoops. Even if we were to restrict `v` to 30, we'd be at `900 * FSCALE**2` (and I can tell you that is a bad representation, because `v` actually resets to -65, so the squared result is over 4 times larger still).
@@ -29,9 +29,9 @@ Of course, the next two terms we add are `5 * v + 140 * FSCALE`, which would max
 Turning our attention to the neuron recovery variable, `u`, even with ridiculously large values of `v = 100; u = -100`, the step size is 2.2, so I don't see it contributing much (`2.2 * FSCALE` that is) here. Similarily, for now the value of `synapse` I'm using is `10 * FSCALE`, so combined they are on the order of 1% the max contribution of the first three terms.
 
 So I can choose `FSCALE` as roughly `INT_MAX / 1100` and try again. This could be 29.789, but I need to round down (integers!) to 29, and then there's an additional restriction that I need `SQRT_FSCALE` as well, so may as well cut back to `FSCALE = 25; SQRT_FSCALE = 5;`. Trying that, I get:
-[data/digression_fscale_25.png]
+![fscale 25](https://github.com/patrickyeon/izhi-neurons/blob/master/data/digression_fscale_25.png?raw=true)
 Okay, not exactly stellar either. Zooming in to the start of this run:
-[data/digression_fscale_25_zoom.png]
+![fscale 25 zoomed](https://github.com/patrickyeon/izhi-neurons/blob/master/data/digression_fscale_25_zoomin.png?raw=true)
 the fixed point implementation looks "choppy", which seems typical of too little precision to me.
 
 That large partial is later on divided by `fracms`, which looks like another great chance to buy a bit of headroom. If I want to have a significant affect, I need to reduce the size of those first three terms, and the most difficult to do so with will be the squared term. I can't just divide it outright (which would be the easy solution, divide it by `fracms`), because I still need to store the squared value somewhere, so either I apply the divisor to only one of the subpartials (and suffer a loss of precision), or I need a divisor I can break in to two terms and apply to each. For now, I'm going to lock down a `fracms` of 10, and see how that shakes out. This is a hit on the flexibility of the `step_i` function, but we need to get it working correctly first.
@@ -43,16 +43,16 @@ That large partial is later on divided by `fracms`, which looks like another gre
     neuron->potential = v + partial;
 ```
 Now `partial` will be on the order of `(400 * FSCALE / 10) + 100 * FSCALE / 2 + 14 * FSCALE == 104 * FSCALE`, actually much closer to our original `100 * FSCALE` limit. 32768/104 == 315.077, the nearest perfect square without going over is 289 (17**2). This is in [dda698c:izhi.c], and gave a more promising, but not perfect waveform:
-[data/digression_fscale_289.png]
+![fscale 289](https://github.com/patrickyeon/izhi-neurons/blob/master/data/digression_fscale_289.png?raw=true)
 Actually, zooming in I can see distinct steps in the neuron potential which makes me suspect a loss of precision:
-[data/digression_fscale_289_zoomin.png]
+![fscale 289 zoomed](https://github.com/patrickyeon/izhi-neurons/blob/master/data/digression_fscale_289_zoomin.png?raw=true)
 and plotting out the value of `neuron->recovery` shows I very distinctive break from the floating point behaviour:
-[data/digression_fscale_289_recovery.png]
+![fscale 289 with recovery](https://github.com/patrickyeon/izhi-neurons/blob/master/data/digression_fscale_289_recovery.png?raw=true)
 
 I looked at a few different choices for `FSCALE` and juggled the distribution of divisors around a little bit, and I suspect that 16 bit signed ints are just a little shy of the dynamic range needed to implement this algorithm in a straightforward manner. So I'm going to do something I should've done a long time ago: I'll move to 32 bit ints.
 
 `INT_MAX` on an int32_t is roughly 2 billion, so we'll set a conservative `FSCALE` of 1 million. Yes, that made things much much easier:
-[data/digression_fscale_1M.png]
+![fscale one million](https://github.com/patrickyeon/izhi-neurons/blob/master/data/digression_fscale_1M.png?raw=true)
 
 This version of the code is [0cc925b:izhi.c]
 
