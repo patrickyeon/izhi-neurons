@@ -1,14 +1,6 @@
-#include <stdint.h>
-#include <stdio.h>
+#include "./izhi.h"
 
-typedef float float_t;
-
-typedef struct {
-    float_t a, b, c, d;
-    float_t potential, recovery;
-} fneuron_t;
-
-static void RS_f(fneuron_t *neuron) {
+void RS_f(fneuron_t *neuron) {
     // create a "regular spiking" floating point neuron
     neuron->a = 0.02;
     neuron->b = 0.2;
@@ -17,7 +9,7 @@ static void RS_f(fneuron_t *neuron) {
     neuron->potential = neuron->recovery = 0;
 }
 
-static void step_f(fneuron_t *neuron, float_t synapse, float_t ms) {
+void step_f(fneuron_t *neuron, float_t synapse, float_t ms) {
     // step a neuron through ms milliseconds with synapse input
     //   if you don't have a good reason to do otherwise, keep ms between 0.1
     //   and 1.0
@@ -33,25 +25,19 @@ static void step_f(fneuron_t *neuron, float_t synapse, float_t ms) {
     return;
 }
 
-typedef int32_t fixed_t;
 #define SQRT_FSCALE 1000
 #define FSCALE (SQRT_FSCALE * SQRT_FSCALE)
 
-typedef struct {
-    // using 1/a, 1/b because a and b are small fractions
-    fixed_t a_inv, b_inv, c, d;
-    fixed_t potential, recovery;
-} ineuron_t;
-
-static void RS_i(ineuron_t *neuron) {
+void RS_i(ineuron_t *neuron) {
     neuron->a_inv = 50;
     neuron->b_inv = 5;
     neuron->c = -65 * FSCALE;
     neuron->d = 2 * FSCALE;
     neuron->potential = neuron->recovery = 0;
+    neuron->scale = FSCALE;
 }
 
-static void step_i(ineuron_t *neuron, fixed_t synapse, fixed_t fracms) {
+void step_i(ineuron_t *neuron, fixed_t synapse, fixed_t fracms) {
     // step a neuron by 1/fracms milliseconds. synapse input must be scaled
     //  before being passed to this function.
     if (neuron->potential >= 30 * FSCALE) {
@@ -66,23 +52,4 @@ static void step_i(ineuron_t *neuron, fixed_t synapse, fixed_t fracms) {
                              - u + synapse) / fracms;
     neuron->recovery = u + ((v / neuron->b_inv - u) / neuron->a_inv) / fracms;
     return;
-}
-
-int main(void) {
-    fneuron_t spiky_f;
-    ineuron_t spiky_i;
-    RS_f(&spiky_f);
-    RS_i(&spiky_i);
-    for (int i = 0; i < 5000; i++) {
-        if (i < 100) {
-            step_f(&spiky_f, 0, 0.1);
-            step_i(&spiky_i, 0, 10);
-        } else {
-            step_f(&spiky_f, 10, 0.1);
-            step_i(&spiky_i, 10 * FSCALE, 10);
-        }
-        printf("%f %f %f %f %f\n", i * 0.1, spiky_f.potential,
-               (float_t)(spiky_i.potential) / FSCALE,
-               spiky_f.recovery, (float_t)(spiky_i.recovery) / FSCALE);
-    }
 }
