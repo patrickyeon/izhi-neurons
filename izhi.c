@@ -34,7 +34,8 @@ static void step_f(fneuron_t *neuron, float_t synapse, float_t ms) {
 }
 
 typedef int16_t fixed_t;
-#define FSCALE 320
+#define FSCALE 289
+#define SQRT_FSCALE 17
 
 typedef struct {
     // using 1/a, 1/b because a and b are small fractions
@@ -60,8 +61,10 @@ static void step_i(ineuron_t *neuron, fixed_t synapse, fixed_t fracms) {
     }
     fixed_t v = neuron->potential;
     fixed_t u = neuron->recovery;
-    neuron->potential = v + ((v * v) / FSCALE / 25 + 5 * v
-                             + 140 * FSCALE - u + synapse) / fracms;
+    fixed_t subpartial = (v / SQRT_FSCALE) /  5;
+    fixed_t partial = ((subpartial / 5) * (subpartial / 2) + v / 2
+                       + 14 * FSCALE) + (synapse - u) / 10;
+    neuron->potential = v + partial;
     neuron->recovery = u + ((v / neuron->b_inv - u) / neuron->a_inv) / fracms;
     return;
 }
@@ -79,7 +82,8 @@ int main(void) {
             step_f(&spiky_f, 10, 0.1);
             step_i(&spiky_i, 10 * FSCALE, 10);
         }
-        printf("%f %f %f\n", i * 0.1, spiky_f.potential,
-               (float_t)(spiky_i.potential) / FSCALE);
+        printf("%f %f %f %f %f\n", i * 0.1, spiky_f.potential,
+               (float_t)(spiky_i.potential) / FSCALE,
+               spiky_f.recovery, (float_t)(spiky_i.recovery) / FSCALE);
     }
 }
