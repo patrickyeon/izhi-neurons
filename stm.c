@@ -22,7 +22,7 @@ int main(void) {
     RS_i(&spiky_i);
 
     for (int i = 0; i < 100; i++) {
-        step_i(&spiky_i, 0, 10);
+        step_i(&spiky_i, 0, 3);
     }
 
     while(1) {
@@ -32,7 +32,7 @@ int main(void) {
         gpio_clear(GPIOA, GPIO15);
 
         gpio_set(GPIOB, GPIO5);
-        step_i(&spiky_i, 10 * spiky_i.scale, 10);
+        step_i(&spiky_i, 10 * spiky_i.scale, 3);
         gpio_clear(GPIOB, GPIO5);
     }
 }

@@ -25,7 +25,11 @@ void step_f(fneuron_t *neuron, float_t synapse, float_t ms) {
     return;
 }
 
-#define SQRT_FSCALE 1000
+// XXX Note: if you change LOG_SQRT_FSCALE, you'll need to re-check the math
+// XXX        to confirm that it won't overflow, as well as play with those
+// XXX        constants when calculating `partial`.
+#define LOG_SQRT_FSCALE 10
+#define SQRT_FSCALE (1 << LOG_SQRT_FSCALE)
 #define FSCALE (SQRT_FSCALE * SQRT_FSCALE)
 
 void RS_i(ineuron_t *neuron) {
@@ -37,8 +41,8 @@ void RS_i(ineuron_t *neuron) {
     neuron->scale = FSCALE;
 }
 
-void step_i(ineuron_t *neuron, fixed_t synapse, fixed_t fracms) {
-    // step a neuron by 1/fracms milliseconds. synapse input must be scaled
+void step_i(ineuron_t *neuron, fixed_t synapse, uint8_t fracms) {
+    // step a neuron by 2**(-fracms) milliseconds. synapse input must be scaled
     //  before being passed to this function.
     if (neuron->potential >= 30 * FSCALE) {
         neuron->potential = neuron->c;
@@ -47,9 +51,13 @@ void step_i(ineuron_t *neuron, fixed_t synapse, fixed_t fracms) {
     }
     fixed_t v = neuron->potential;
     fixed_t u = neuron->recovery;
-    fixed_t partial = (v / SQRT_FSCALE) /  5;
-    neuron->potential = v + (partial * partial + 5 * v  + 140 * FSCALE
-                             - u + synapse) / fracms;
-    neuron->recovery = u + ((v / neuron->b_inv - u) / neuron->a_inv) / fracms;
+    //fixed_t partial = (v / SQRT_FSCALE) / 5;
+    fixed_t partial = ((v >> LOG_SQRT_FSCALE) * 819) >> 12;
+    neuron->potential = v + ((partial * partial + 5 * v  + 140 * FSCALE
+                             - u + synapse) >> fracms);
+    //neuron->recovery = u + (((v / neuron->b_inv - u) / neuron->a_inv)
+    //                        >> fracms);
+    neuron->recovery = u + (((v - u * neuron->b_inv)
+                             / (neuron->b_inv * neuron->a_inv)) >> fracms);
     return;
 }

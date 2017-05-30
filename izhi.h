@@ -22,6 +22,6 @@ typedef struct {
 } ineuron_t;
 
 void RS_i(ineuron_t *neuron);
-void step_i(ineuron_t *neuron, fixed_t synapse, fixed_t fracms);
+void step_i(ineuron_t *neuron, fixed_t synapse, uint8_t fracms);
 
 #endif // IZHI_H
