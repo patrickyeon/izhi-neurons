@@ -27,3 +27,10 @@ stm:
 
 clean:
 	$(RM) -f *.d *.o *.elf *.map *.bin *.hex
+
+flash: stm
+	~/projects/stlink/build/Release/st-flash --format ihex write stm.hex
+
+plots: host
+	./host.o >neurons.dat
+	gnuplot neuroncheck.p
